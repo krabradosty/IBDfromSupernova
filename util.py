@@ -16,10 +16,16 @@ deltInRad = 0.024
 Gfermi = 1.166 * 10 ** (-11)
 y = (DELT ** 2 - M_e ** 2) / 2.
 SIGMA_0 = ((Gfermi ** 2) * cosUCab ** 2) * (1 + deltInRad) / pi
+SIN2_W = 0.23120
 
 E_nu_TOTAL = 6.2415096516 * 10 ** 5 * 3. * 10 ** 53 / 6.  # MeV
 E_nu_AVERAGE = 12.  # MeV
-DIST = 3.0856776 * 10 ** 22  # cm
+DIST = 10000 * 3.0856776 * 10 ** 16 * (1/(3*6.6) * 10**14)  # MeV
+
+F_ps = 1.7152
+TAU = 880*(1/6.6)*10**22 #MeV
+
+N = 2 * 6.02 * 10**23 / (18 * 10**(-3)) * 32 * 10**6
 
 
 def getSpectrumMaxwBoltz(eNu):
@@ -49,6 +55,13 @@ def getdSigma_dcos(eNu, cosTeta):
            * getEnPos(eNu, cosTeta) * ((getEnPos(eNu, cosTeta)) ** 2 - M_e ** 2) ** (1. / 2.) \
            - (SIGMA_0 / 2.) * (getBigGamma(eNu, cosTeta) / M) * e0 * (e0 ** 2 - M_e ** 2) ** (1. / 2.)
     return temp
+
+
+def getdSigma_denPos2(eNu, cosTeta):
+    e0 = eNu - DELT  # positron energy in null order
+    p0 = numpy.sqrt(numpy.power(e0, 2) - M_e * M_e)
+    return getdSigma_dcos(eNu, cosTeta) * (1 + (eNu / mp) * (1 - cosTeta * e0 / p0)) / (p0 * eNu / mp)
+
 
 
 def getBigGamma(eNu, cosTeta):
@@ -124,17 +137,45 @@ def getIbdAll(eNu, cosTeta):
     return eP, kN, nAngle
 
 
-def getdSigma_dEpos(eNu):
+def getSigmaVogel(eNu):
     e0 = eNu - DELT  # positron energy in null order
     p0 = numpy.sqrt(e0*e0 - M_e*M_e)
 
-    #return p0 + 2*e0*e0/ (2 * p0)
-    return p0*e0
+    return p0*e0 *(2*pi**2)/(M_e**5 * F_ps * TAU)
 
 
 def getEnPosWithCS(eNu, cosTheta):
 
-    dSigma_dEpos = getdSigma_dEpos(eNu)
+    dSigma_dEpos = getdSigma_denPos2(eNu)
     enPos = getEnPos(eNu, cosTheta) * dSigma_dEpos
 
     return enPos
+
+
+def sigmaFromGd(eNu):
+    return 0.0952*10**(-46)*(eNu - 1.3)**2 * (1-7*eNu/mp) * ((1/(3*6.6)*10**14))**2
+
+
+def getSigmaStrumia(eNu):
+    e0 = eNu - DELT  # positron energy in null order
+    p0 = numpy.sqrt(e0*e0 - M_e*M_e)
+
+    return p0 * e0 * 10**(-43) * eNu**(-0.07056 + 0.02018*numpy.log(eNu) - 0.001953 * (numpy.log(eNu))**3) * ((1/(3*6.6)*10**12))**2
+
+
+def getSigmaScatt(eNu, electron=True, anti=False):
+    if electron:
+        g_v = 2*SIN2_W + 0.5
+        g_a = 0.5
+    else:
+        g_v = 2 * SIN2_W - 0.5
+        g_a = -0.5
+
+    if anti:
+        g_a = -1 * g_a
+
+    return Gfermi**2*M_e/(2*pi) * (
+        (g_v + g_a)**2 * 2*eNu**2/(M_e+2*eNu) +
+        (g_a**2 - g_v**2)*M_e/(2*eNu**2) * 4*eNu**4/(M_e+2*eNu)**2 -
+        (g_a-g_v)**2 * eNu/3 * ((1-2*eNu/(M_e+2*eNu))**3 - 1)
+    )
